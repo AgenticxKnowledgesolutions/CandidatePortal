@@ -13,6 +13,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [sandboxCode, setSandboxCode] = useState<string | null>(null);
 
   useEffect(() => {
     let timer: any;
@@ -30,11 +31,17 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     try {
-      await api.post("/auth/candidate/otp/request", { email });
+      const response = await api.post("/auth/candidate/otp/request", { email });
+      if (response.data?.sandbox && response.data?.code) {
+        setSandboxCode(response.data.code);
+      } else {
+        setSandboxCode(null);
+      }
       setStep("otp");
       setResendCooldown(30); // 30 seconds cooldown
     } catch (err: any) {
       setError(getErrorMessage(err));
+      setSandboxCode(null);
     } finally {
       setLoading(false);
     }
@@ -117,6 +124,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
                 We sent a validation code to {email}
               </p>
+              {sandboxCode && (
+                <div className="alert alert-info" style={{ marginTop: "12px", textAlign: "center", fontSize: "14px", background: "rgba(0, 82, 254, 0.08)", color: "#93c5fd", border: "1px solid rgba(0, 82, 254, 0.2)", padding: "10px", borderRadius: "6px" }}>
+                  <strong>Sandbox Mode OTP:</strong> {sandboxCode}
+                </div>
+              )}
             </div>
             <button
               type="submit"
