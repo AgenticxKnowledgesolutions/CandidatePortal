@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { api } from "../services/api";
+import { api, getErrorMessage } from "../services/api";
 import logoImg from "../assets/logo/AgenticX-removebg-preview.png";
 import { 
   User, 
@@ -133,7 +133,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       setUploadSuccess(`Successfully uploaded ${docType.toUpperCase()}`);
       await fetchProfile(); // reload
     } catch (err: any) {
-      setError(err.response?.data?.detail || `Failed to upload ${docType.toUpperCase()}`);
+      setError(getErrorMessage(err));
     } finally {
       setUploadingDoc(null);
     }
@@ -219,7 +219,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         setIsPaying(false);
       }
     } catch (err: any) {
-      setPaymentError(err.message || "Failed to initialize checkout transaction.");
+      setPaymentError(getErrorMessage(err));
       setIsPaying(false);
     }
   };

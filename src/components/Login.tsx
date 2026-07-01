@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { api } from "../services/api";
+import { api, getErrorMessage } from "../services/api";
 import logoImg from "../assets/logo/AgenticX-removebg-preview.png";
 
 interface LoginProps {
@@ -34,7 +34,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       setStep("otp");
       setResendCooldown(30); // 30 seconds cooldown
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to send OTP. Please check your email.");
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -50,12 +50,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     try {
       const response = await api.post("/auth/candidate/otp/verify", {
         email,
-        otp_code: otp,
+        otp: otp,
       });
       localStorage.setItem("candidate_token", response.data.access_token);
       onLoginSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Invalid OTP code. Please try again.");
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
