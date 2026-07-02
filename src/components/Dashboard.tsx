@@ -65,6 +65,97 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
+// ─── Sub-component: Course Fee Pay Block ──────────────────────────────────────
+interface CourseFeePayBlockProps {
+  remaining: number;
+  coursePaid: number;
+  finalPayable: number;
+  isPaying: boolean;
+  onPay: (paymentType: string, amount: number) => void;
+}
+
+const CourseFeePayBlock: React.FC<CourseFeePayBlockProps> = ({
+  remaining, coursePaid, finalPayable, isPaying, onPay
+}) => {
+  const [customAmount, setCustomAmount] = React.useState<string>(String(remaining));
+  const [payError, setPayError] = React.useState<string | null>(null);
+
+  const handlePay = () => {
+    const amt = parseFloat(customAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setPayError("Please enter a valid amount greater than 0.");
+      return;
+    }
+    if (amt > remaining) {
+      setPayError(`Amount cannot exceed remaining balance of ₹${remaining}.`);
+      return;
+    }
+    setPayError(null);
+    onPay("Installment", amt);
+  };
+
+  return (
+    <div style={{ border: "1px solid rgba(139, 92, 246, 0.25)", borderRadius: "8px", padding: "16px", background: "rgba(139, 92, 246, 0.04)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px", alignItems: "flex-start" }}>
+        <div>
+          <span style={{ fontSize: "14px", fontWeight: "700", color: "#fff", display: "block" }}>Course Fee Payment</span>
+          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+            Paid ₹{coursePaid} of ₹{finalPayable} — Remaining ₹{remaining}
+          </span>
+        </div>
+        <span style={{ fontSize: "18px", fontWeight: "800", color: "#f59e0b" }}>₹{remaining}</span>
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <span style={{
+            position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)",
+            color: "var(--text-muted)", fontSize: "14px", pointerEvents: "none"
+          }}>₹</span>
+          <input
+            type="number"
+            min="1"
+            max={remaining}
+            value={customAmount}
+            onChange={(e) => { setCustomAmount(e.target.value); setPayError(null); }}
+            style={{
+              width: "100%", boxSizing: "border-box",
+              background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "6px", color: "#fff", padding: "9px 10px 9px 26px",
+              fontSize: "14px", fontWeight: "600", outline: "none"
+            }}
+          />
+        </div>
+        <button
+          onClick={() => setCustomAmount(String(remaining))}
+          style={{
+            background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: "6px", color: "var(--text-muted)", padding: "9px 12px",
+            fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap"
+          }}
+        >Pay Full</button>
+      </div>
+
+      {payError && (
+        <p style={{ fontSize: "12px", color: "var(--color-danger)", marginBottom: "8px" }}>{payError}</p>
+      )}
+
+      <button
+        onClick={handlePay}
+        disabled={isPaying}
+        className="btn-primary"
+        style={{ width: "100%", background: "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)" }}
+      >
+        {isPaying ? "Initializing Gateway..." : `Pay ₹${customAmount || 0} Now`}
+      </button>
+      <p style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "8px", textAlign: "center" }}>
+        You can pay in installments. Enter any amount up to ₹{remaining}.
+      </p>
+    </div>
+  );
+};
+// ──────────────────────────────────────────────────────────────────────────────
+
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "fees" | "docs">("overview");
@@ -530,6 +621,44 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                       ₹{profile.admission_fee_amount} ({profile.admission_fee_paid ? "Paid" : "Unpaid"})
                     </strong>
                   </div>
+
+                  {/* Course fee paid / remaining — only meaningful if there's a payable amount */}
+                  {(profile.final_payable_amount > 0) && (() => {
+                    const coursePaid = (profile.payments || [])
+                      .filter(p => p.status === "Paid" && p.payment_type !== "Admission Fee")
+                      .reduce((sum, p) => sum + p.amount, 0);
+                    const remaining = Math.max(0, profile.final_payable_amount - coursePaid);
+                    return (
+                      <>
+                        <hr style={{ border: "none", borderTop: "1px solid var(--border-color)" }} />
+                        <div className="flex-between">
+                          <span style={{ color: "var(--text-muted)" }}>Course Fee Paid:</span>
+                          <strong style={{ color: "var(--color-success)" }}>₹{coursePaid}</strong>
+                        </div>
+                        <div className="flex-between">
+                          <span style={{ color: "var(--text-muted)" }}>Remaining Balance:</span>
+                          <strong style={{ color: remaining > 0 ? "var(--color-warning)" : "var(--color-success)" }}>
+                            ₹{remaining}{remaining === 0 ? " ✓ Cleared" : ""}
+                          </strong>
+                        </div>
+                        <div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px" }}>
+                            <span>Course Fee Progress</span>
+                            <span>{Math.min(100, Math.round((coursePaid / profile.final_payable_amount) * 100))}%</span>
+                          </div>
+                          <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: "100px", height: "6px", overflow: "hidden" }}>
+                            <div style={{
+                              height: "100%",
+                              borderRadius: "100px",
+                              width: `${Math.min(100, (coursePaid / profile.final_payable_amount) * 100)}%`,
+                              background: remaining === 0 ? "var(--color-success)" : "linear-gradient(90deg, var(--color-primary), #8b5cf6)",
+                              transition: "width 0.5s ease"
+                            }} />
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {profile.offer_remarks && (
@@ -549,44 +678,74 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 )}
               </div>
 
-              <div className="card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div className="card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div>
-                  <h3 className="card-title">Admission Checkout</h3>
+                  <h3 className="card-title">Payment Checkout</h3>
                   <p style={{ color: "var(--text-muted)", fontSize: "14px", marginBottom: "16px" }}>
-                    Make direct online payments securely. Once the admission fee is cleared, your dashboard status automatically advances to Enrolled.
+                    Make secure online payments. Admission fee secures your slot; course fee can be paid in installments.
                   </p>
 
+                  {/* --- Admission Fee Section --- */}
                   {!profile.admission_fee_paid ? (
-                    <div style={{ background: "rgba(0, 82, 254, 0.04)", border: "1px dashed rgba(0, 82, 254, 0.2)", borderRadius: "8px", padding: "16px", marginBottom: "16px" }}>
-                      <div className="flex-between" style={{ marginBottom: "8px" }}>
-                        <span style={{ fontSize: "14px", fontWeight: "600", color: "#fff" }}>Registration & Admission Fee</span>
-                        <strong style={{ color: "var(--color-success)", fontSize: "16px" }}>₹{profile.admission_fee_amount}</strong>
+                    <>
+                      <div style={{ background: "rgba(0, 82, 254, 0.04)", border: "1px dashed rgba(0, 82, 254, 0.2)", borderRadius: "8px", padding: "16px", marginBottom: "12px" }}>
+                        <div className="flex-between" style={{ marginBottom: "8px" }}>
+                          <span style={{ fontSize: "14px", fontWeight: "600", color: "#fff" }}>Registration & Admission Fee</span>
+                          <strong style={{ color: "var(--color-success)", fontSize: "16px" }}>₹{profile.admission_fee_amount}</strong>
+                        </div>
+                        <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                          Pay the admission fee to register and lock your scholarship slot.
+                        </p>
                       </div>
-                      <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                        Pay the admission fee now to register and lock your scholarship slot.
-                      </p>
-                    </div>
+                      <button
+                        onClick={() => handleInitiatePayment("Admission Fee", profile.admission_fee_amount)}
+                        disabled={isPaying}
+                        className="btn-primary"
+                        style={{ width: "100%", background: "linear-gradient(135deg, var(--color-primary) 0%, #1d4ed8 100%)", marginBottom: "12px" }}
+                      >
+                        {isPaying ? "Initializing Gateway..." : `Pay Admission Fee (₹${profile.admission_fee_amount})`}
+                      </button>
+                    </>
                   ) : (
-                    <div style={{ background: "rgba(16, 185, 129, 0.05)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "8px", padding: "16px", marginBottom: "16px", display: "flex", gap: "10px", alignItems: "center" }}>
-                      <CheckCircle size={20} style={{ color: "var(--color-success)" }} />
+                    <div style={{ background: "rgba(16, 185, 129, 0.05)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "8px", padding: "14px", marginBottom: "12px", display: "flex", gap: "10px", alignItems: "center" }}>
+                      <CheckCircle size={18} style={{ color: "var(--color-success)", flexShrink: 0 }} />
                       <div>
                         <strong style={{ color: "#fff", fontSize: "14px", display: "block" }}>Admission Fee Cleared</strong>
-                        <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>Thank you! Your enrollment registration is active.</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>Your enrollment registration is active.</span>
                       </div>
                     </div>
                   )}
-                </div>
 
-                {!profile.admission_fee_paid && (
-                  <button
-                    onClick={() => handleInitiatePayment("Admission Fee", profile.admission_fee_amount)}
-                    disabled={isPaying}
-                    className="btn-primary"
-                    style={{ width: "100%", background: "linear-gradient(135deg, var(--color-primary) 0%, #1d4ed8 100%)" }}
-                  >
-                    {isPaying ? "Initializing Gateway..." : `Pay Admission Fee (₹${profile.admission_fee_amount})`}
-                  </button>
-                )}
+                  {/* --- Course Fee Remaining Section --- */}
+                  {profile.admission_fee_paid && profile.final_payable_amount > 0 && (() => {
+                    const coursePaid = (profile.payments || [])
+                      .filter(p => p.status === "Paid" && p.payment_type !== "Admission Fee")
+                      .reduce((sum, p) => sum + p.amount, 0);
+                    const remaining = Math.max(0, profile.final_payable_amount - coursePaid);
+
+                    if (remaining <= 0) {
+                      return (
+                        <div style={{ background: "rgba(16, 185, 129, 0.05)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: "8px", padding: "14px", display: "flex", gap: "10px", alignItems: "center" }}>
+                          <CheckCircle size={18} style={{ color: "var(--color-success)", flexShrink: 0 }} />
+                          <div>
+                            <strong style={{ color: "#fff", fontSize: "14px", display: "block" }}>Course Fee Fully Paid 🎉</strong>
+                            <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>All course fee payments complete. Thank you!</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <CourseFeePayBlock
+                        remaining={remaining}
+                        coursePaid={coursePaid}
+                        finalPayable={profile.final_payable_amount}
+                        isPaying={isPaying}
+                        onPay={handleInitiatePayment}
+                      />
+                    );
+                  })()}
+                </div>
               </div>
 
             </div>
