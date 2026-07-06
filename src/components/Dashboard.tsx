@@ -23,6 +23,8 @@ interface CandidatePayment {
   status: string;
   transaction_id?: string;
   payment_date?: string;
+  receipt_number?: string;
+  receipt_url?: string;
 }
 
 interface CandidateProfile {
@@ -277,6 +279,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           handler: async (verifyRes: any) => {
             try {
               setIsPaying(true);
+              setPaymentError(null);
+              
               await api.post("/candidates/portal/payments/verify", {
                 razorpay_order_id: verifyRes.razorpay_order_id,
                 razorpay_payment_id: verifyRes.razorpay_payment_id,
@@ -284,10 +288,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 payment_type: paymentType,
                 amount
               });
-              await fetchProfile();
+
+              // Poll payment status until "Paid"
+              let attempts = 0;
+              const maxAttempts = 15;
+              const pollInterval = 2000; // 2 seconds
+
+              const checkStatus = async () => {
+                try {
+                  const statusRes = await api.get(`/candidates/portal/payments/status/${verifyRes.razorpay_order_id}`);
+                  if (statusRes.data.status === "Paid") {
+                    await fetchProfile();
+                    setIsPaying(false);
+                    return;
+                  }
+                } catch (pollErr) {
+                  console.error("Polling error:", pollErr);
+                }
+
+                attempts++;
+                if (attempts < maxAttempts) {
+                  setTimeout(checkStatus, pollInterval);
+                } else {
+                  setPaymentError("Payment verified. It may take a minute to process the receipt. Please refresh the page shortly.");
+                  await fetchProfile();
+                  setIsPaying(false);
+                }
+              };
+
+              setTimeout(checkStatus, pollInterval);
             } catch (vErr: any) {
               setPaymentError("Payment verification failed. Please contact support.");
-            } finally {
               setIsPaying(false);
             }
           },
@@ -769,6 +800,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                         <th>Status</th>
                         <th>Transaction ID</th>
                         <th>Receipt Date</th>
+                        <th>Receipt No</th>
+                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -787,6 +820,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                           </td>
                           <td>
                             {payment.payment_date ? new Date(payment.payment_date).toLocaleString() : "N/A"}
+                          </td>
+                          <td style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
+                            {payment.receipt_number || "N/A"}
+                          </td>
+                          <td>
+                            {payment.status === "Paid" && payment.receipt_url ? (
+                              <a
+                                href={payment.receipt_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-secondary"
+                                style={{
+                                  padding: "4px 8px",
+                                  fontSize: "12px",
+                                  textDecoration: "none",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  borderRadius: "4px",
+                                  border: "1px solid rgba(255,255,255,0.15)",
+                                  background: "rgba(255,255,255,0.05)",
+                                  color: "#fff"
+                                }}
+                              >
+                                Download
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>—</span>
+                            )}
                           </td>
                         </tr>
                       ))}
